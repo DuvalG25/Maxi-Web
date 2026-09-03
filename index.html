@@ -503,6 +503,47 @@ body.dark .marginBadge.mid{ color:#f7d08d; }
 body.dark .marginBadge.bad{ color:#ffb0aa; }
 body.dark .portal-status{ color:#b8f0cf; border-color:#3d7656; }
 
+/* Barra de módulos siempre visible: al hacer scroll queda pegada arriba
+   para poder cambiar de módulo (Liquidaciones / Portal / Aprobaciones) sin
+   tener que volver a subir manualmente hasta el inicio de la página. */
+#modeTabs{
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--bg);
+  padding-top: 8px;
+  padding-bottom: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+body.dark #modeTabs{ box-shadow: 0 2px 8px rgba(0,0,0,0.35); }
+
+/* Botón flotante "Volver arriba / Menú": visible en cualquier punto de
+   scroll, para moverse rápido entre módulos incluso en pantallas largas o
+   en móvil, sin depender de encontrar la barra sticky con la vista. */
+#btnVolverMenu{
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--accent, #2563eb);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px);
+  transition: opacity .15s ease, transform .15s ease;
+}
+#btnVolverMenu.visible{ opacity: 1; pointer-events: auto; transform: translateY(0); }
+#btnVolverMenu:active{ transform: scale(0.96); }
 </style>
 </head>
 <body>
@@ -519,6 +560,14 @@ body.dark .portal-status{ color:#b8f0cf; border-color:#3d7656; }
       <span id="themeToggleLabel">Modo oscuro</span>
     </button>
   </header>
+
+  <!-- BOTÓN FLOTANTE: volver arriba / cambiar de módulo desde cualquier punto -->
+  <button type="button" id="btnVolverMenu" title="Volver al menú de módulos">
+    <span style="display:inline-flex;width:14px;height:14px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+    </span>
+    Volver / módulos
+  </button>
 
   <!-- SELECTOR DE MODO -->
   <div class="tabs" id="modeTabs" style="margin-bottom:20px">
@@ -2330,34 +2379,57 @@ function getPortalApiUrl(){
 }
 function setPortalApiUrl(url){ safeStorageSet(PORTAL_URL_KEY, url); }
 
-async function portalApiCall(payload){
-  if (typeof google !== 'undefined' && google.script && google.script.run){
-    return new Promise((resolve, reject)=>{
+// Tiempo máximo que esperamos una respuesta del backend, sin importar la
+// vía (google.script.run o fetch). Pasado este tiempo, se cancela la espera
+// y se le muestra un error claro al usuario en vez de dejar el botón
+// "cargando" para siempre. Este es el punto central de toda la conexión:
+// arreglar algo aquí arregla TODAS las pantallas que usan portalApiCall.
+const PORTAL_API_TIMEOUT_MS = 20000;
+
+// Envuelve cualquier promesa con un límite de tiempo. Si se cumple el
+// tiempo antes de que la promesa original resuelva o falle, se rechaza con
+// un mensaje entendible. Esto es lo que evita que la app se quede
+// "consultando" indefinidamente, tanto en el modo Apps Script como en fetch.
+function conLimiteDeTiempo(promesa, ms, mensajeTimeout){
+  let idTimeout;
+  const timeoutPromesa = new Promise((_, reject)=>{
+    idTimeout = setTimeout(()=>reject(new Error(mensajeTimeout)), ms);
+  });
+  return Promise.race([promesa, timeoutPromesa]).finally(()=>clearTimeout(idTimeout));
+}
+
+// Llama a google.script.run.api(payload) y la envuelve en una Promise común.
+function llamarViaGoogleScriptRun(payload){
+  return new Promise((resolve, reject)=>{
+    try {
       google.script.run
         .withSuccessHandler(resolve)
         .withFailureHandler(err=>reject(new Error(err && err.message ? err.message : String(err))))
         .api(payload);
-    });
-  }
+    } catch (err){
+      // Si algo revienta de forma síncrona al armar la llamada (poco común,
+      // pero posible si google.script.run no está totalmente listo aún),
+      // lo convertimos en un rechazo normal en vez de romper el flujo.
+      reject(new Error('No se pudo iniciar la llamada al backend: ' + (err && err.message ? err.message : err)));
+    }
+  });
+}
 
+// Llama al backend por fetch() (modo de respaldo, cuando la página NO se
+// abre desde la URL /exec de Apps Script). Se usa como último recurso.
+async function llamarViaFetch(payload){
   const url = getPortalApiUrl();
   if (!url){ throw new Error('Falta configurar la URL del backend (Apps Script).'); }
-  // Se envía como text/plain para evitar el preflight CORS que Apps Script no soporta.
-  const controller = new AbortController();
-  const timeout = setTimeout(()=>controller.abort(), 15000);
   let res;
   try {
+    // Se envía como text/plain para evitar el preflight CORS que Apps Script no soporta.
     res = await fetch(url, {
       method: 'POST',
       headers: {'Content-Type': 'text/plain;charset=utf-8'},
-      body: JSON.stringify(payload),
-      signal: controller.signal
+      body: JSON.stringify(payload)
     });
   } catch (err) {
-    if (err.name === 'AbortError') throw new Error('No se pudo completar la conexión desde esta página. Abre la aplicación usando la URL /exec de Apps Script, o publica este archivo como Index.html dentro del mismo proyecto.');
-    throw new Error('No se pudo contactar el backend: ' + err.message);
-  } finally {
-    clearTimeout(timeout);
+    throw new Error('No se pudo contactar el backend: ' + err.message + '. Verifica que estés abriendo la URL /exec real de Apps Script (no una vista previa) y que tengas conexión a internet.');
   }
   if (!res.ok){
     if (res.status === 404){
@@ -2367,9 +2439,39 @@ async function portalApiCall(payload){
     }
     throw new Error('Error de red al contactar el backend (' + res.status + ')');
   }
-  const data = await res.json();
+  return res.json();
+}
+
+// Punto único que usa TODA la interfaz para hablar con el backend.
+// - Si la página corre dentro de Apps Script, usa google.script.run (sin
+//   red, sin CORS: la vía correcta y confiable).
+// - Si no, usa fetch() como respaldo.
+// En ambos casos aplica un límite de tiempo duro para que ningún botón
+// pueda quedarse "pensando" para siempre.
+async function portalApiCall(payload){
+  const enAppsScript = typeof google !== 'undefined' && google.script && google.script.run;
+  const promesa = enAppsScript ? llamarViaGoogleScriptRun(payload) : llamarViaFetch(payload);
+  const mensajeTimeout = 'El backend no respondió a tiempo (' + (PORTAL_API_TIMEOUT_MS/1000) + 's). Puede estar lento o sin conexión; inténtalo de nuevo en un momento.';
+  const data = await conLimiteDeTiempo(promesa, PORTAL_API_TIMEOUT_MS, mensajeTimeout);
   return data;
 }
+
+// ---- Botón flotante "Volver / módulos" ----
+// Aparece solo cuando el usuario ya bajó lo suficiente como para que la
+// barra de módulos sticky no baste (por ejemplo, pantallas muy cortas), y
+// siempre lleva de vuelta arriba para poder elegir otro módulo.
+(function initBtnVolverMenu(){
+  const btn = document.getElementById('btnVolverMenu');
+  if (!btn) return;
+  function actualizarVisibilidad(){
+    btn.classList.toggle('visible', window.scrollY > 260);
+  }
+  window.addEventListener('scroll', actualizarVisibilidad, { passive: true });
+  actualizarVisibilidad();
+  btn.addEventListener('click', ()=>{
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+})();
 
 // ---- Selector de modo ----
 document.querySelectorAll('#modeTabs .tab').forEach(tab=>{
