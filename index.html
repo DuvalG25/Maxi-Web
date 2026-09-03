@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -1025,10 +1024,37 @@ body.dark .portal-status{ color:#b8f0cf; border-color:#3d7656; }
 </div><!-- /modeAdmin -->
 
 <script>
+// ================= ALMACENAMIENTO SEGURO (localStorage) =================
+// Cuando esta página se abre DENTRO de Apps Script (la URL /exec), el HTML
+// real se sirve desde un iframe de otro origen (n-xxxx.googleusercontent.com).
+// Muchos navegadores (Chrome, Firefox, Safari) bloquean el acceso a
+// localStorage/sessionStorage dentro de iframes de "terceros" y lanzan una
+// excepción (SecurityError) en vez de simplemente devolver null.
+// Como el script original llamaba a localStorage.getItem(...) en la primera
+// línea ejecutable del <script>, esa excepción detenía la ejecución de TODO
+// el resto del archivo (miles de líneas), por lo que ningún addEventListener
+// llegaba a registrarse: los botones y pestañas quedaban "muertos" y solo
+// funcionaban los <input> nativos (usuario/contraseña), que no dependen de JS.
+// Estas funciones envuelven cada acceso en try/catch y devuelven un valor de
+// respaldo en memoria si el almacenamiento persistente no está disponible.
+const _memStorage = {};
+function safeStorageGet(key, fallback){
+  try { return localStorage.getItem(key); }
+  catch(e){ return (key in _memStorage) ? _memStorage[key] : (fallback !== undefined ? fallback : null); }
+}
+function safeStorageSet(key, value){
+  try { localStorage.setItem(key, value); }
+  catch(e){ _memStorage[key] = value; }
+}
+function safeStorageRemove(key){
+  try { localStorage.removeItem(key); }
+  catch(e){ delete _memStorage[key]; }
+}
+
 // ================= TEMA VISUAL =================
 const themeToggle = document.getElementById('themeToggle');
 const themeToggleLabel = document.getElementById('themeToggleLabel');
-const savedTheme = localStorage.getItem('contable-theme');
+const savedTheme = safeStorageGet('contable-theme');
 
 function applyTheme(theme){
   const dark = theme === 'dark';
@@ -1041,7 +1067,7 @@ applyTheme(savedTheme === 'dark' ? 'dark' : 'light');
 if (themeToggle){
   themeToggle.addEventListener('click', ()=>{
     const nextTheme = document.body.classList.contains('dark') ? 'light' : 'dark';
-    localStorage.setItem('contable-theme', nextTheme);
+    safeStorageSet('contable-theme', nextTheme);
     applyTheme(nextTheme);
   });
 }
@@ -2295,14 +2321,14 @@ const PORTAL_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbykui2xPlLmw
 let portalSession = null; // {usuario, municipio}
 
 function getPortalApiUrl(){
-  const stored = localStorage.getItem(PORTAL_URL_KEY);
+  const stored = safeStorageGet(PORTAL_URL_KEY);
   const oldDeployments = [
     'https://script.google.com/macros/s/AKfycbxaqFhi9YhE3bDer2xVgX95586q_ccjC_xZFcI18WR0xzn084WnPeDa1Jie_yERkdRk/exec',
     'https://script.google.com/macros/s/AKfycbwo8g29NNQ0j4_xX8ktLj9hUu5Q9HOPegHm_KpCCR8nKUGvsUmtqEjGi-ezMnL1QbFj/exec'
   ];
   return stored && oldDeployments.indexOf(stored) === -1 ? stored : PORTAL_URL_DEFAULT;
 }
-function setPortalApiUrl(url){ localStorage.setItem(PORTAL_URL_KEY, url); }
+function setPortalApiUrl(url){ safeStorageSet(PORTAL_URL_KEY, url); }
 
 async function portalApiCall(payload){
   if (typeof google !== 'undefined' && google.script && google.script.run){
@@ -2335,7 +2361,7 @@ async function portalApiCall(payload){
   }
   if (!res.ok){
     if (res.status === 404){
-      localStorage.removeItem(PORTAL_URL_KEY);
+      safeStorageRemove(PORTAL_URL_KEY);
       document.dispatchEvent(new CustomEvent('portal-backend-expired'));
       throw new Error('El backend respondió 404: la URL de Apps Script guardada ya no existe (implementación borrada o URL incorrecta). Hay que volver a copiar la URL /exec desde "Implementar > Administrar implementaciones" y guardarla aquí.');
     }
