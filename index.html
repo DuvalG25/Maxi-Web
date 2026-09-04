@@ -17,6 +17,7 @@
 <style>
 /* ============================================================
    1. DESIGN TOKENS — Maxienvíos design system
+   
    ============================================================ */
 :root{
   --bg:#f0f4f8; --panel:#ffffff; --panel2:#f5f8fb; --border:#dce5ee;
@@ -680,7 +681,7 @@ body.dark #modeTabs{ box-shadow: 0 2px 8px rgba(0,0,0,0.35); }
 
     <div id="portalLoginBox">
       <div class="row">
-        <div class="field"><label><span class="tab-ic" style="vertical-align:-2px;display:inline-flex;width:12px;height:12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span> Usuario</label><input type="text" id="portalUsuario" autocomplete="username" placeholder="Ingresa tu usuario"></div>
+        <div class="field"><label><span class="tab-ic" style="vertical-align:-2px;display:inline-flex;width:12px;height:12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span> Cédula</label><input type="text" id="portalUsuario" inputmode="numeric" pattern="[0-9]*" autocomplete="username" placeholder="Ingresa tu número de cédula"></div>
         <div class="field"><label><span class="tab-ic" style="vertical-align:-2px;display:inline-flex;width:12px;height:12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span> Contraseña</label><input type="password" id="portalPassword" autocomplete="current-password" placeholder="Ingresa tu contraseña"></div>
       </div>
       <div class="footer-actions" style="justify-content:flex-start">
@@ -2366,7 +2367,7 @@ function escAttr(s){ return escHtml(s); }
 const PORTAL_URL_KEY = 'consolidador_portal_api_url';
 // Implementación activa del proyecto de Apps Script. Se puede reemplazar
 // desde el panel de configuración si se crea una nueva implementación.
-const PORTAL_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbykui2xPlLmwsPjmDbUph5iOSSWqJzoGLw206yHxdDV6iLkjDm0607oCxPqsCx_vniE/exec';
+const PORTAL_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbz9RRKidDXmy_r-HWt3fcu5jq5DugFmGXR9-tyqJdLEP5z8hekJaxBePFivqSWHZEXl/exec';
 let portalSession = null; // {usuario, municipio}
 
 function getPortalApiUrl(){
@@ -2634,14 +2635,22 @@ function initQuincenaPicker(){
 }
 initQuincenaPicker();
 
-// ---- Login de municipio ----
+// ---- Login de municipio (por número de cédula) ----
+// Mientras el usuario escribe, se eliminan puntos/espacios/guiones y
+// cualquier caracter que no sea un dígito, para que la cédula quede
+// siempre en formato limpio (solo números) sin importar cómo la tecleen.
+document.getElementById('portalUsuario').addEventListener('input', (e)=>{
+  const limpio = e.target.value.replace(/\D/g, '');
+  if (limpio !== e.target.value) e.target.value = limpio;
+});
+
 document.getElementById('btnPortalLogin').addEventListener('click', async ()=>{
-  const usuario = document.getElementById('portalUsuario').value.trim();
+  const usuario = document.getElementById('portalUsuario').value.replace(/\D/g, '').trim();
   const password = document.getElementById('portalPassword').value;
   const msg = document.getElementById('portalLoginMsg');
   msg.classList.add('hidden');
   if (!usuario || !password){
-    msg.textContent = 'Escribe tu usuario y contraseña.';
+    msg.textContent = 'Escribe tu número de cédula y tu contraseña.';
     msg.classList.remove('hidden');
     return;
   }
