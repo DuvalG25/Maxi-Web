@@ -540,7 +540,7 @@ tr:hover td{ background:var(--panel2) }
   .liqCard .breakdown .val{ font-size:11px; overflow-wrap:anywhere }
   .liqCard .breakdown .val.pos{ font-size:12px }
   .liqCard .togglebtn{ font-size:11px; max-width:100%; text-align:left }
-  .liqCard .btnPdfHistLider{ margin-left:0!important; padding:5px 8px }
+  .liqCard .btnPdfHistLider,.liqCard .btnAgregarUsuarioHist{ margin-left:0!important; padding:5px 8px; margin-top:4px }
   .liqCard .usuarios{ overflow:visible }
   .liqCard .urow{
     grid-template-columns:minmax(0,1.55fr) minmax(52px,.8fr) minmax(70px,1fr) minmax(70px,1fr) auto!important;
@@ -3155,7 +3155,7 @@ async function verLiquidacionGuardada(id){
           <button class="ghost small" id="btnCerrarDetalleLiq">✕ Cerrar</button>
         </div>
         <p class="muted" style="font-size:12px">Guardado por ${escHtml(resp.guardadoPor||'—')} el ${fecha}</p>
-         <p class="muted" style="font-size:11.5px;margin-top:-6px">✏️ Puedes corregir el nombre/usuario y el total de entregas, o 🗑️ eliminarlo si quedó mal, directamente desde aquí. Los cambios se guardan de inmediato.</p>
+         <p class="muted" style="font-size:11.5px;margin-top:-6px">✏️ Puedes corregir el nombre/usuario y el total de entregas, ➕ añadir una persona que faltó, o 🗑️ eliminarla si quedó mal. Los cambios se guardan de inmediato.</p>
         <div class="footer-actions" style="justify-content:flex-start;margin:8px 0 16px">
           <button class="primary small" id="btnPdfHistConsolidado">📄 PDF consolidado</button>
           ${tieneIngresoHist ? '<button class="ghost small" id="btnFinHistToggle">📊 Ver reporte financiero</button>' : ''}
@@ -3202,6 +3202,7 @@ async function verLiquidacionGuardada(id){
             <div class="sub">${usuarios.length} usuario(s) · ${fmt(l.total)} entregas</div>
             <button class="togglebtn">▶ Ver desglose por usuario</button>
             <button class="ghost small btnPdfHistLider" style="margin-left:8px">📄 PDF</button>
+            <button class="ghost small btnAgregarUsuarioHist" data-lider="${escAttr(l.lider)}" style="margin-left:8px">➕ Añadir usuario</button>
           </div>
         </div>
         <div class="breakdown">
@@ -3234,6 +3235,47 @@ async function verLiquidacionGuardada(id){
         const liderObj = liqArr.find(x=>x.lider===l.lider);
         const doc = await buildLiquidacionPDF([liderObj], {onlyLider:true, periodo: r.quincena, tieneIngreso: liderObj.calc.ingreso!=null});
         doc.save(`Liquidacion_${safeFileName(l.lider)}_${safeFileName(r.quincena)}.pdf`);
+      });
+
+      card.querySelector('.btnAgregarUsuarioHist').addEventListener('click', async (e)=>{
+        e.stopPropagation();
+        const lider = e.currentTarget.dataset.lider;
+        const nuevoUsuario = prompt(`Nombre o usuario nuevo para ${lider}:`, '');
+        if (nuevoUsuario === null) return;
+        if (!nuevoUsuario.trim()){
+          alert('Escribe el nombre o usuario.');
+          return;
+        }
+        const entregas = prompt(`Total de entregas de "${nuevoUsuario.trim()}":`, '0');
+        if (entregas === null) return;
+        const nuevoTotal = parseFloat(entregas.replace(',', '.'));
+        if (isNaN(nuevoTotal) || nuevoTotal < 0){
+          alert('Ingresa un número válido (0 o mayor).');
+          return;
+        }
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        const textoOriginal = btn.textContent;
+        btn.textContent = 'Guardando...';
+        try {
+          const resp2 = await portalApiCall({
+            action:'agregarUsuarioLiquidacion',
+            equipoPass, id, lider,
+            nuevoUsuario: nuevoUsuario.trim(),
+            nuevoTotal
+          });
+          if (!resp2.ok){
+            alert(resp2.error || 'No se pudo agregar el usuario.');
+            return;
+          }
+          await verLiquidacionGuardada(id);
+          cargarHistorialLiquidaciones();
+        } catch(err){
+          alert('Error: ' + err.message);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = textoOriginal;
+        }
       });
  
        // --- Editar el usuario y/o el total de entregas ---
