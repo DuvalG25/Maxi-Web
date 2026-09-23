@@ -481,6 +481,94 @@ tr:hover td{ background:var(--panel2) }
   .kpi2 .value{ font-size:19px }
 }
 
+/* Ajustes de lectura y toque para teléfonos. El detalle de una liquidación
+   debe seguir siendo completo, pero sin obligar a hacer zoom ni dejar que
+   los nombres largos rompan la tarjeta. */
+@media (max-width:640px){
+  html,body{ overflow-x:hidden }
+  .wrap{ width:100%; padding:14px 10px 76px }
+  header.top{
+    min-height:0; gap:10px; margin-bottom:12px; padding:14px;
+    align-items:flex-start;
+  }
+  header.top .divider{ height:28px }
+  header.top h1{ font-size:15px; line-height:1.25 }
+  header.top p{ font-size:11px; line-height:1.35 }
+  .theme-toggle{ margin-left:auto; min-height:34px; padding:7px 9px }
+  .theme-toggle span{ display:none }
+
+  #modeTabs{
+    margin-left:-10px; margin-right:-10px; margin-bottom:12px!important;
+    padding:6px 8px; gap:3px;
+  }
+  #modeTabs .tab{ flex:0 0 auto; padding:9px 10px; font-size:11px }
+  #modeTabs .tab .tab-ic{ width:15px; height:15px }
+
+  .card{ padding:14px; margin-bottom:14px; border-radius:12px }
+  .card h2{ font-size:13.5px; line-height:1.35; align-items:flex-start }
+  .row,.portal-form-grid{ gap:10px }
+  .field{ min-width:100%; }
+  .footer-actions,.exportRow,.portal-actions,.bulkExportBar{
+    display:grid; grid-template-columns:1fr; gap:8px; justify-content:stretch;
+  }
+  .footer-actions button,.exportRow button,.portal-actions button,.bulkExportBar button{
+    width:100%; min-height:40px;
+  }
+  .portal-actions{ align-items:stretch; padding-top:12px; margin-top:12px }
+  .portal-actions .primary{ min-width:0 }
+  .portal-form-grid{ grid-template-columns:1fr }
+  .portal-field-card{ padding:12px }
+  .portal-hero{ padding:14px!important; gap:10px; flex-wrap:wrap }
+  .portal-status{ margin-left:0!important }
+
+  .kpirow{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px }
+  .kpi{ min-width:0; padding:11px 10px }
+  .kpi .label{ font-size:9px; line-height:1.25 }
+  .kpi .value{ font-size:15px; overflow-wrap:anywhere }
+  .kpi.total .value{ font-size:17px }
+  .kpi2 .value{ overflow-wrap:anywhere; white-space:normal }
+
+  .liqCard{ padding:12px; margin-bottom:10px }
+  .liqCard .lrow{ gap:8px }
+  .liqCard .name{ font-size:13px; overflow-wrap:anywhere }
+  .liqCard .sub{ font-size:11px }
+  .liqCard .breakdown{
+    display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:9px 12px; margin-top:10px; padding-top:10px;
+  }
+  .liqCard .breakdown div span{ font-size:10px }
+  .liqCard .breakdown .val{ font-size:11px; overflow-wrap:anywhere }
+  .liqCard .breakdown .val.pos{ font-size:12px }
+  .liqCard .togglebtn{ font-size:11px; max-width:100%; text-align:left }
+  .liqCard .btnPdfHistLider{ margin-left:0!important; padding:5px 8px }
+  .liqCard .usuarios{ overflow:visible }
+  .liqCard .urow{
+    grid-template-columns:minmax(0,1.55fr) minmax(52px,.8fr) minmax(70px,1fr) minmax(70px,1fr) auto!important;
+    gap:4px; padding:7px 0; font-size:10.5px;
+  }
+  .liqCard .urow>span{ min-width:0; overflow-wrap:anywhere }
+  .liqCard .urow.head{ font-size:8.5px; line-height:1.2 }
+  .liqCard .urow button.small{ padding:5px 6px; font-size:11px }
+  .liqCard .urow>span:last-child{ display:flex; gap:3px!important }
+
+  .tablewrap{ max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch }
+  .tablewrap table{ min-width:560px }
+  .searchbar{ align-items:stretch }
+  .searchbar input{ min-width:0; width:100% }
+  .chartbox{ height:260px; padding:10px }
+  .emailField{ align-items:stretch; flex-direction:column }
+  .emailField input{ max-width:none }
+}
+
+@media (max-width:380px){
+  .kpirow{ grid-template-columns:1fr }
+  .liqCard .urow{
+    grid-template-columns:minmax(0,1.35fr) minmax(45px,.75fr) minmax(62px,1fr) minmax(62px,1fr) auto!important;
+    font-size:9.5px;
+  }
+  .liqCard .urow.head{ font-size:8px }
+}
+
 /* Contraste adicional para reglas antiguas con colores fijos. */
 body.dark select:focus,
 body.dark input:focus,
@@ -3067,7 +3155,7 @@ async function verLiquidacionGuardada(id){
           <button class="ghost small" id="btnCerrarDetalleLiq">✕ Cerrar</button>
         </div>
         <p class="muted" style="font-size:12px">Guardado por ${escHtml(resp.guardadoPor||'—')} el ${fecha}</p>
-        <p class="muted" style="font-size:11.5px;margin-top:-6px">✏️ Puedes corregir el total de entregas de un usuario, o 🗑️ eliminarlo si quedó mal, directamente desde aquí. Los cambios se guardan de inmediato.</p>
+         <p class="muted" style="font-size:11.5px;margin-top:-6px">✏️ Puedes corregir el nombre/usuario y el total de entregas, o 🗑️ eliminarlo si quedó mal, directamente desde aquí. Los cambios se guardan de inmediato.</p>
         <div class="footer-actions" style="justify-content:flex-start;margin:8px 0 16px">
           <button class="primary small" id="btnPdfHistConsolidado">📄 PDF consolidado</button>
           ${tieneIngresoHist ? '<button class="ghost small" id="btnFinHistToggle">📊 Ver reporte financiero</button>' : ''}
@@ -3131,7 +3219,7 @@ async function verLiquidacionGuardada(id){
               <span class="num" style="font-family:var(--mono)">${fmtMoney(u.bruto)}</span>
               <span class="num" style="font-family:var(--mono);font-weight:700">${fmtMoney(u.neto)}</span>
               <span style="display:flex;gap:4px;justify-self:end">
-                <button class="ghost small btnEditarUsuarioHist" data-lider="${escAttr(l.lider)}" data-usuario="${escAttr(u.usuario)}" data-total="${u.total}" title="Editar total de entregas">✏️</button>
+                 <button class="ghost small btnEditarUsuarioHist" data-lider="${escAttr(l.lider)}" data-usuario="${escAttr(u.usuario)}" data-total="${u.total}" title="Editar usuario y total de entregas" aria-label="Editar usuario y total de entregas">✏️</button>
                 <button class="ghost small btnEliminarUsuarioHist" data-lider="${escAttr(l.lider)}" data-usuario="${escAttr(u.usuario)}" title="Eliminar este usuario">🗑️</button>
               </span>
             </div>`).join('')}
@@ -3148,18 +3236,26 @@ async function verLiquidacionGuardada(id){
         doc.save(`Liquidacion_${safeFileName(l.lider)}_${safeFileName(r.quincena)}.pdf`);
       });
  
-      // --- NUEVO: editar el total de entregas de un usuario ---
+       // --- Editar el usuario y/o el total de entregas ---
       card.querySelectorAll('.btnEditarUsuarioHist').forEach(btn=>{
         btn.addEventListener('click', async (e)=>{
           e.stopPropagation();
           const { lider, usuario, total } = btn.dataset;
-          const nuevo = prompt(`Nuevo total de entregas para "${usuario}":`, total);
-          if (nuevo === null) return; // canceló
-          const nuevoTotal = parseFloat(nuevo);
-          if (isNaN(nuevoTotal) || nuevoTotal < 0){ alert('Ingresa un número válido (0 o mayor).'); return; }
+           const nuevoUsuario = prompt(`Corrige el nombre o usuario de esta persona:`, usuario);
+           if (nuevoUsuario === null) return; // canceló
+           if (!nuevoUsuario.trim()){ alert('El nombre del usuario no puede quedar vacío.'); return; }
+           const nuevo = prompt(`Nuevo total de entregas para "${nuevoUsuario.trim()}":`, total);
+           if (nuevo === null) return; // canceló
+           const nuevoTotal = parseFloat(nuevo.replace(',', '.'));
+           if (isNaN(nuevoTotal) || nuevoTotal < 0){ alert('Ingresa un número válido (0 o mayor).'); return; }
           btn.disabled = true;
           try {
-            const resp2 = await portalApiCall({ action:'actualizarUsuarioLiquidacion', equipoPass, id, lider, usuario, nuevoTotal });
+             const resp2 = await portalApiCall({
+               action:'actualizarUsuarioLiquidacion',
+               equipoPass, id, lider, usuario,
+               nuevoUsuario: nuevoUsuario.trim(),
+               nuevoTotal
+             });
             if (!resp2.ok){ alert(resp2.error || 'No se pudo actualizar.'); return; }
             verLiquidacionGuardada(id);       // recarga esta vista ya con el dato corregido
             cargarHistorialLiquidaciones();   // refresca los totales en la tabla de arriba
