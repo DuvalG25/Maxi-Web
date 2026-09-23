@@ -2453,6 +2453,8 @@ function escAttr(s){ return escHtml(s); }
 
 // ================= PORTAL DE MUNICIPIOS =================
 const PORTAL_URL_KEY = 'consolidador_portal_api_url';
+const PORTAL_URL_VERSION_KEY = 'consolidador_portal_api_url_version';
+const PORTAL_URL_CONFIG_VERSION = '2026-09-23-appscript-01';
 // Implementación activa del proyecto de Apps Script. Se puede reemplazar
 // desde el panel de configuración si se crea una nueva implementación.
 const PORTAL_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbz9RRKidDXmy_r-HWt3fcu5jq5DugFmGXR9-tyqJdLEP5z8hekJaxBePFivqSWHZEXl/exec';
@@ -2460,13 +2462,26 @@ let portalSession = null; // {usuario, municipio}
 
 function getPortalApiUrl(){
   const stored = safeStorageGet(PORTAL_URL_KEY);
+  const version = safeStorageGet(PORTAL_URL_VERSION_KEY);
   const oldDeployments = [
     'https://script.google.com/macros/s/AKfycbxaqFhi9YhE3bDer2xVgX95586q_ccjC_xZFcI18WR0xzn084WnPeDa1Jie_yERkdRk/exec',
     'https://script.google.com/macros/s/AKfycbwo8g29NNQ0j4_xX8ktLj9hUu5Q9HOPegHm_KpCCR8nKUGvsUmtqEjGi-ezMnL1QbFj/exec'
   ];
+  // Una actualización del frontend no borra el localStorage de cada
+  // navegador. La primera vez que entra esta versión, obliga a usar la
+  // implementación activa y elimina una URL vieja que podría provocar
+  // errores de conexión aunque el backend nuevo sí esté funcionando.
+  if (version !== PORTAL_URL_CONFIG_VERSION || !stored || oldDeployments.indexOf(stored) !== -1){
+    safeStorageSet(PORTAL_URL_KEY, PORTAL_URL_DEFAULT);
+    safeStorageSet(PORTAL_URL_VERSION_KEY, PORTAL_URL_CONFIG_VERSION);
+    return PORTAL_URL_DEFAULT;
+  }
   return stored && oldDeployments.indexOf(stored) === -1 ? stored : PORTAL_URL_DEFAULT;
 }
-function setPortalApiUrl(url){ safeStorageSet(PORTAL_URL_KEY, url); }
+function setPortalApiUrl(url){
+  safeStorageSet(PORTAL_URL_KEY, url);
+  safeStorageSet(PORTAL_URL_VERSION_KEY, PORTAL_URL_CONFIG_VERSION);
+}
 
 // Tiempo máximo que esperamos una respuesta del backend, sin importar la
 // vía (google.script.run o fetch). Pasado este tiempo, se cancela la espera
@@ -2474,6 +2489,11 @@ function setPortalApiUrl(url){ safeStorageSet(PORTAL_URL_KEY, url); }
 // "cargando" para siempre. Este es el punto central de toda la conexión:
 // arreglar algo aquí arregla TODAS las pantallas que usan portalApiCall.
 const PORTAL_API_TIMEOUT_MS = 20000;
+const PORTAL_READ_ACTIONS = new Set([
+  'login','equipoLogin','misReportes','listPendientes',
+  'listarLiquidaciones','obtenerLiquidacion',
+  'listarCierresMensuales','obtenerCierreMensual'
+]);
 
 // Envuelve cualquier promesa con un límite de tiempo. Si se cumple el
 // tiempo antes de que la promesa original resuelva o falle, se rechaza con
@@ -2515,6 +2535,7 @@ async function llamarViaFetch(payload){
     res = await fetch(url, {
       method: 'POST',
       headers: {'Content-Type': 'text/plain;charset=utf-8'},
+      cache: 'no-store',
       body: JSON.stringify(payload)
     });
   } catch (err) {
@@ -2539,10 +2560,20 @@ async function llamarViaFetch(payload){
 // pueda quedarse "pensando" para siempre.
 async function portalApiCall(payload){
   const enAppsScript = typeof google !== 'undefined' && google.script && google.script.run;
-  const promesa = enAppsScript ? llamarViaGoogleScriptRun(payload) : llamarViaFetch(payload);
   const mensajeTimeout = 'El backend no respondió a tiempo (' + (PORTAL_API_TIMEOUT_MS/1000) + 's). Puede estar lento o sin conexión; inténtalo de nuevo en un momento.';
-  const data = await conLimiteDeTiempo(promesa, PORTAL_API_TIMEOUT_MS, mensajeTimeout);
-  return data;
+  try {
+    const promesa = enAppsScript ? llamarViaGoogleScriptRun(payload) : llamarViaFetch(payload);
+    return await conLimiteDeTiempo(promesa, PORTAL_API_TIMEOUT_MS, mensajeTimeout);
+  } catch (err) {
+    // Las lecturas se pueden reintentar por doPost/fetch si google.script.run
+    // falla por una sesión vieja del navegador. Nunca repetimos escrituras:
+    // una escritura podría haberse aplicado antes de que el navegador recibiera
+    // la respuesta y repetirla produciría duplicados.
+    if (enAppsScript && PORTAL_READ_ACTIONS.has(payload.action)){
+      return await conLimiteDeTiempo(llamarViaFetch(payload), PORTAL_API_TIMEOUT_MS, mensajeTimeout);
+    }
+    throw err;
+  }
 }
 
 // ---- Botón flotante "Volver / módulos" ----
